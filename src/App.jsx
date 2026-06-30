@@ -297,7 +297,7 @@ function AffiniAppContent({ session }) {
   const [confirmedDates, setConfirmedDates] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [profileData, setProfileData] = useState({ name: "", bio: "", avatar: "🙋", photo: null });
-  const [form, setForm] = useState({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+  const [form, setForm] = useState({ title: "", desc: "", format: "", date: "", timeSlot: "", venueName: "", venueAddress: "", tagInput: "", tags: [], section: "" });
   const [participants, setParticipants] = useState([]);
   const [myTopics, setMyTopics] = useState({ upcoming: [], past: [] });
 
@@ -411,8 +411,8 @@ function AffiniAppContent({ session }) {
         max_participants: maxParticipants,
         date: form.date || null,
         time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
-        city: form.location.split("—")[0].trim() || form.location,
-        venue: form.location.includes("—") ? form.location.split("—")[1].trim() : null,
+        city: form.venueAddress ? form.venueAddress.split(",").slice(-1)[0].trim() : "",
+        venue: form.venueName ? `${form.venueName}${form.venueAddress ? " — " + form.venueAddress : ""}` : (form.venueAddress || null),
       })
       .select()
       .single();
@@ -444,7 +444,7 @@ function AffiniAppContent({ session }) {
     });
 
     showToast("✨ Topic pubblicato!");
-    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", venueName: "", venueAddress: "", tagInput: "", tags: [], section: "" });
     setTab("home");
     loadEvents();
   };
@@ -470,7 +470,7 @@ function AffiniAppContent({ session }) {
       timeSlot: ev.time || "",
       timeMode: "fascia",
       exactTime: "",
-      location: ev.venue ? `${ev.location} — ${ev.venue}` : (ev.location || ""),
+      venueName: ev.venue && ev.venue.includes(" — ") ? ev.venue.split(" — ")[0] : (ev.venue || ""), venueAddress: ev.venue && ev.venue.includes(" — ") ? ev.venue.split(" — ")[1] : (ev.location || ""),
       tagInput: "",
       tags: ev.tags || [],
     });
@@ -490,8 +490,8 @@ function AffiniAppContent({ session }) {
         format: form.format,
         date: form.date || null,
         time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
-        city: form.location.split("—")[0].trim() || form.location,
-        venue: form.location.includes("—") ? form.location.split("—")[1].trim() : null,
+        city: form.venueAddress ? form.venueAddress.split(",").slice(-1)[0].trim() : "",
+        venue: form.venueName ? `${form.venueName}${form.venueAddress ? " — " + form.venueAddress : ""}` : (form.venueAddress || null),
       })
       .eq("id", editingTopic);
 
@@ -515,7 +515,7 @@ function AffiniAppContent({ session }) {
     }
 
     showToast("✨ Topic aggiornato!");
-    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", venueName: "", venueAddress: "", tagInput: "", tags: [], section: "" });
     setEditingTopic(false);
     setTab("home");
     loadEvents();
@@ -1178,8 +1178,18 @@ function AffiniAppContent({ session }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Luogo</label>
-                <input className="form-input" placeholder="Es. Modena — Baracchina, Via Emilia 12"
-                  value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
+                  <div>
+                    <div style={{fontSize:"11px", color:"var(--bark)", marginBottom:"6px"}}>Specifica il nome del locale, parco, piazza</div>
+                    <input className="form-input" placeholder="Es. Baracchina"
+                      value={form.venueName || ""} onChange={e => setForm(f => ({ ...f, venueName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{fontSize:"11px", color:"var(--bark)", marginBottom:"6px"}}>Indirizzo (da Google Maps)</div>
+                    <input className="form-input" placeholder="Es. Via Emilia 12, Modena"
+                      value={form.venueAddress || ""} onChange={e => setForm(f => ({ ...f, venueAddress: e.target.value }))} />
+                  </div>
+                </div>
                 <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer"
                   style={{
                     display:"inline-flex", alignItems:"center", gap:"6px", marginTop:"8px",
@@ -1198,7 +1208,7 @@ function AffiniAppContent({ session }) {
             {editingTopic && (
               <button onClick={() => {
                 setEditingTopic(false);
-                setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+                setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", venueName: "", venueAddress: "", tagInput: "", tags: [], section: "" });
                 setTab("home");
               }}
                 style={{width:"100%", padding:"13px", borderRadius:"16px", border:"1.5px solid var(--sand)", background:"white", color:"var(--bark)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", marginTop:"10px"}}>
