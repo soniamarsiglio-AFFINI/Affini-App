@@ -411,7 +411,7 @@ function AffiniAppContent({ session }) {
         max_participants: maxParticipants,
         date: form.date || null,
         time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
-        city: form.venueAddress ? form.venueAddress.split(",").slice(-1)[0].trim() : "",
+        city: form.venueAddress ? form.venueAddress.trim() : (form.venueName || "Da definire"),
         venue: form.venueName ? `${form.venueName}${form.venueAddress ? " — " + form.venueAddress : ""}` : (form.venueAddress || null),
       })
       .select()
@@ -490,7 +490,7 @@ function AffiniAppContent({ session }) {
         format: form.format,
         date: form.date || null,
         time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
-        city: form.venueAddress ? form.venueAddress.split(",").slice(-1)[0].trim() : "",
+        city: form.venueAddress ? form.venueAddress.trim() : (form.venueName || "Da definire"),
         venue: form.venueName ? `${form.venueName}${form.venueAddress ? " — " + form.venueAddress : ""}` : (form.venueAddress || null),
       })
       .eq("id", editingTopic);
