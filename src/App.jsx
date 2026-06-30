@@ -104,7 +104,7 @@ const style = `
     width: 36px; height: 36px; border-radius: 50%;
     background: rgba(255,255,255,0.9); border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center; font-size: 18px;
-    flex-shrink: 0;
+    flex-shrink: 0; color: var(--soil);
   }
   .detail-content { padding: 22px; padding-bottom: 100px; }
   .detail-title { font-family: 'Playfair Display', serif; font-size: 24px; line-height: 1.25; color: var(--soil); margin-bottom: 10px; }
@@ -257,6 +257,12 @@ const FORMATS = [
 ];
 
 const formatLabel = (id) => FORMATS.find(f => f.id === id);
+const formatDateIT = (isoDate) => {
+  if (!isoDate) return isoDate;
+  const d = new Date(isoDate + "T00:00:00");
+  if (isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }).replace(/^\w/, c => c.toUpperCase());
+};
 
 function AffiniAppContent({ session }) {
   const [tab, setTab] = useState("home");
@@ -278,6 +284,8 @@ function AffiniAppContent({ session }) {
   const [notifiedEvents, setNotifiedEvents] = useState({});
   const [editPhoto, setEditPhoto] = useState(false);
   const [showAvailability, setShowAvailability] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingTopic, setEditingTopic] = useState(false);
   const [availability, setAvailability] = useState({}); // { "2026-05-03": ["mattina","sera"], ... }
   // Other participants' availability (pre-filled for simulation)
   const otherAvailability = {
@@ -289,7 +297,7 @@ function AffiniAppContent({ session }) {
   const [confirmedDates, setConfirmedDates] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [profileData, setProfileData] = useState({ name: "", bio: "", avatar: "🙋", photo: null });
-  const [form, setForm] = useState({ title: "", desc: "", format: "", date: "", location: "", tagInput: "", tags: [], section: "" });
+  const [form, setForm] = useState({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
   const [participants, setParticipants] = useState([]);
   const [myTopics, setMyTopics] = useState({ upcoming: [], past: [] });
 
@@ -402,6 +410,7 @@ function AffiniAppContent({ session }) {
         format: form.format,
         max_participants: maxParticipants,
         date: form.date || null,
+        time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
         city: form.location.split("—")[0].trim() || form.location,
         venue: form.location.includes("—") ? form.location.split("—")[1].trim() : null,
       })
@@ -435,7 +444,79 @@ function AffiniAppContent({ session }) {
     });
 
     showToast("✨ Topic pubblicato!");
-    setForm({ title: "", desc: "", format: "", date: "", location: "", tagInput: "", tags: [], section: "" });
+    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+    setTab("home");
+    loadEvents();
+  };
+
+  const handleDeleteTopic = async (id) => {
+    const { error } = await supabase.from("topics").delete().eq("id", id);
+    if (error) {
+      showToast("Errore durante l'eliminazione", "error");
+    } else {
+      showToast("Topic eliminato");
+      setShowDeleteConfirm(false);
+      setDetail(null);
+      loadEvents();
+    }
+  };
+
+  const startEditTopic = (ev) => {
+    setForm({
+      title: ev.title || "",
+      desc: ev.desc || "",
+      format: ev.format || "",
+      date: ev.date || "",
+      timeSlot: ev.time || "",
+      timeMode: "fascia",
+      exactTime: "",
+      location: ev.venue ? `${ev.location} — ${ev.venue}` : (ev.location || ""),
+      tagInput: "",
+      tags: ev.tags || [],
+    });
+    setEditingTopic(ev.id);
+    setDetail(null);
+    setTab("create");
+  };
+
+  const handleUpdateTopic = async () => {
+    if (!form.title || !form.format || form.tags.length < 3) return showToast("Completa tutti i campi e aggiungi 3 tag", "error");
+
+    const { error } = await supabase
+      .from("topics")
+      .update({
+        title: form.title,
+        description: form.desc,
+        format: form.format,
+        date: form.date || null,
+        time_slot: form.timeMode === "exact" ? form.exactTime : form.timeSlot || null,
+        city: form.location.split("—")[0].trim() || form.location,
+        venue: form.location.includes("—") ? form.location.split("—")[1].trim() : null,
+      })
+      .eq("id", editingTopic);
+
+    if (error) {
+      showToast("Errore durante la modifica", "error");
+      return;
+    }
+
+    // Aggiorna i tag: rimuovi i vecchi collegamenti e ricrea quelli nuovi
+    await supabase.from("topic_tags").delete().eq("topic_id", editingTopic);
+    for (const tagName of form.tags) {
+      let { data: existingTag } = await supabase.from("tags").select("id").eq("name", tagName).single();
+      let tagId = existingTag?.id;
+      if (!tagId) {
+        const { data: newTag } = await supabase.from("tags").insert({ name: tagName }).select().single();
+        tagId = newTag?.id;
+      }
+      if (tagId) {
+        await supabase.from("topic_tags").insert({ topic_id: editingTopic, tag_id: tagId });
+      }
+    }
+
+    showToast("✨ Topic aggiornato!");
+    setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+    setEditingTopic(false);
     setTab("home");
     loadEvents();
   };
@@ -475,12 +556,43 @@ function AffiniAppContent({ session }) {
         {detail && (() => {
           const ev = events.find(e => e.id === detail);
           const isJoined = joined[ev.id];
+          const isOwner = ev.creator_id === session.user.id;
           const fmt = formatLabel(ev.format);
           return (
             <div className="detail">
-              <div className="detail-hero" style={{ background: `linear-gradient(135deg, ${ev.accentColor}28, var(--sand))` }}>
+              <div className="detail-hero" style={{ background: `linear-gradient(135deg, ${ev.accentColor}28, var(--sand))`, justifyContent: "space-between" }}>
                 <button className="detail-back" onClick={() => { setDetail(null); setMotivation(""); setTimeout(() => window.scrollTo(0,0), 10); }}>←</button>
+                {isOwner && (
+                  <div style={{display:"flex", gap:"8px"}}>
+                    <button onClick={() => startEditTopic(ev)}
+                      style={{width:"40px", height:"40px", borderRadius:"50%", background:"rgba(255,255,255,0.9)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px"}}>
+                      ✏️
+                    </button>
+                    <button onClick={() => setShowDeleteConfirm(true)}
+                      style={{width:"40px", height:"40px", borderRadius:"50%", background:"rgba(255,255,255,0.9)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px"}}>
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
+              {showDeleteConfirm && (
+                <div style={{position:"fixed", inset:0, zIndex:500, background:"rgba(61,43,31,0.5)", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px"}}>
+                  <div style={{background:"var(--cream)", borderRadius:"20px", padding:"24px", maxWidth:"340px", width:"100%"}}>
+                    <div style={{fontFamily:"Playfair Display, serif", fontSize:"18px", color:"var(--soil)", marginBottom:"10px", fontWeight:"700"}}>Eliminare questo topic?</div>
+                    <div style={{fontSize:"13px", color:"var(--bark)", marginBottom:"20px", lineHeight:"1.5"}}>Questa azione è permanente. Tutti gli iscritti perderanno l'accesso a questo incontro.</div>
+                    <div style={{display:"flex", gap:"10px"}}>
+                      <button onClick={() => setShowDeleteConfirm(false)}
+                        style={{flex:1, padding:"12px", borderRadius:"12px", border:"1.5px solid var(--sand)", background:"white", color:"var(--bark)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px"}}>
+                        Annulla
+                      </button>
+                      <button onClick={() => handleDeleteTopic(ev.id)}
+                        style={{flex:1, padding:"12px", borderRadius:"12px", border:"none", background:"#C0392B", color:"white", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:"500"}}>
+                        Elimina
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="detail-content">
                 <div className="tag-pills" style={{ marginBottom: 12 }}>
                   {ev.tags.map(tag => {
@@ -520,7 +632,7 @@ function AffiniAppContent({ session }) {
                   <div className="info-box">
                     <div className="info-box-label">📅 Data</div>
                     <div className="info-box-value" style={{color: (ev.date || confirmedDates[ev.id]) ? "var(--soil)" : "var(--rose)", fontSize: (ev.date || confirmedDates[ev.id]) ? "14px" : "12px"}}>
-                      {ev.date || (confirmedDates[ev.id] ? confirmedDates[ev.id].date : "Da definire insieme")}
+                      {ev.date ? formatDateIT(ev.date) : (confirmedDates[ev.id] ? confirmedDates[ev.id].date : "Da definire insieme")}
                     </div>
                   </div>
                   <div className="info-box">
@@ -811,14 +923,13 @@ function AffiniAppContent({ session }) {
                       <div className="card-format">{fmt.icon} {fmt.label}</div>
                       <h2 className="card-title">{ev.title}</h2>
                       <div className="tag-pills">
-                        {ev.tags.map(tag => {
-                          const c = tagColor(tag);
-                          return <span key={tag} className="tag-pill" style={{ background: c.bg, color: c.color }}>#{tag}</span>;
-                        })}
+                        {ev.tags.map(tag => (
+                          <span key={tag} className="tag-pill" style={{ background: "rgba(181,115,122,0.15)", color: "var(--rose)" }}>#{tag}</span>
+                        ))}
                       </div>
                       <div className="card-meta">
                         {ev.date
-                          ? <><span className="meta-item">📅 {ev.date}</span><span className="meta-item">🕐 {ev.time}</span></>
+                          ? <><span className="meta-item">📅 {formatDateIT(ev.date)}</span><span className="meta-item">🕐 {ev.time}</span></>
                           : <span className="meta-item" style={{color:"var(--rose)", fontStyle:"italic"}}>📅 Data da definire insieme</span>
                         }
                         <span className="meta-item">📍 {ev.location}</span>
@@ -849,8 +960,8 @@ function AffiniAppContent({ session }) {
         {/* CREATE */}
         {tab === "create" && (
           <div className="create-page">
-            <h1 className="page-title">Crea un topic</h1>
-            <p className="page-sub">Hai bisogno di parlare?<br/>Trova persone che possono capirti.</p>
+            <h1 className="page-title">{editingTopic ? "Modifica topic" : "Crea un topic"}</h1>
+            <p className="page-sub">{editingTopic ? "Aggiorna i dettagli del tuo topic." : <>Hai bisogno di parlare?<br/>Trova persone che possano capirti.</>}</p>
 
             <div className="form-group">
               <label className="form-label">Titolo</label>
@@ -901,7 +1012,7 @@ function AffiniAppContent({ session }) {
                   .slice(0, 4);
                 const listMatches = form.tagInput.length > 0
                   ? SUGGESTED_TAGS.filter(t => t.toLowerCase().includes(form.tagInput.toLowerCase()) && !form.tags.includes(t) && !textMatches.includes(t)).slice(0, 4)
-                  : SUGGESTED_TAGS.filter(t => !form.tags.includes(t)).slice(0, 2);
+                  : [];
                 const allSuggestions = [...new Set([...textMatches, ...listMatches])].slice(0, 6);
                 return allSuggestions.length > 0 ? (
                   <div style={{marginTop:"8px"}}>
@@ -940,11 +1051,11 @@ function AffiniAppContent({ session }) {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <div className="form-group">
-                <label className="form-label">Data (entro 30 giorni)</label>
+                <label className="form-label">Data (entro 3 mesi)</label>
                 {(() => {
                   const today = new Date();
                   const maxDate = new Date(today);
-                  maxDate.setDate(today.getDate() + 30);
+                  maxDate.setMonth(today.getMonth() + 3);
                   const year = calMonth.year;
                   const month = calMonth.month;
                   const firstDay = new Date(year, month, 1).getDay();
@@ -1020,15 +1131,80 @@ function AffiniAppContent({ session }) {
                 })()}
               </div>
               <div className="form-group">
+                <label className="form-label">Orario</label>
+                <div style={{display:"flex", gap:"8px", marginBottom:"10px"}}>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, timeMode: "fascia", exactTime: "" }))}
+                    style={{
+                      flex:1, padding:"8px", borderRadius:"10px", border:"1.5px solid",
+                      borderColor: (form.timeMode || "fascia") === "fascia" ? "var(--soil)" : "var(--sand)",
+                      background: (form.timeMode || "fascia") === "fascia" ? "var(--soil)" : "white",
+                      color: (form.timeMode || "fascia") === "fascia" ? "var(--cream)" : "var(--bark)",
+                      fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer"
+                    }}>
+                    Fascia oraria
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, timeMode: "exact", timeSlot: "" }))}
+                    style={{
+                      flex:1, padding:"8px", borderRadius:"10px", border:"1.5px solid",
+                      borderColor: form.timeMode === "exact" ? "var(--soil)" : "var(--sand)",
+                      background: form.timeMode === "exact" ? "var(--soil)" : "white",
+                      color: form.timeMode === "exact" ? "var(--cream)" : "var(--bark)",
+                      fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer"
+                    }}>
+                    Orario preciso
+                  </button>
+                </div>
+                {form.timeMode === "exact" ? (
+                  <input className="form-input" type="time"
+                    value={form.exactTime || ""}
+                    onChange={e => setForm(f => ({ ...f, exactTime: e.target.value }))} />
+                ) : (
+                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px"}}>
+                    {["Mattina · 9:00–12:00","Pranzo · 12:00–14:00","Pomeriggio · 14:00–17:00","Aperitivo · 17:00–20:00","Cena · 20:00–22:00","Sera · 22:00–24:00"].map(slot => (
+                      <button key={slot} type="button"
+                        onClick={() => setForm(f => ({ ...f, timeSlot: slot }))}
+                        style={{
+                          padding:"10px 8px", borderRadius:"12px", border:"1.5px solid",
+                          borderColor: form.timeSlot === slot ? "var(--soil)" : "var(--sand)",
+                          background: form.timeSlot === slot ? "var(--soil)" : "white",
+                          color: form.timeSlot === slot ? "var(--cream)" : "var(--bark)",
+                          fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer", textAlign:"center"
+                        }}>
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
                 <label className="form-label">Luogo</label>
                 <input className="form-input" placeholder="Es. Modena — Baracchina, Via Emilia 12"
                   value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+                <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display:"inline-flex", alignItems:"center", gap:"6px", marginTop:"8px",
+                    fontSize:"12px", color:"var(--rose)", fontWeight:"500", textDecoration:"none"
+                  }}>
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="5.5" r="3.2" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M6.5 8.5C6.5 8.5 2.5 11.5 6.5 11.5C10.5 11.5 6.5 8.5 6.5 8.5Z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+                  Cerca su Google Maps
+                </a>
+                <div style={{fontSize:"11px", color:"var(--bark)", marginTop:"4px"}}>Trova l'indirizzo esatto su Maps, poi copialo qui sopra — così tutti arriveranno nello stesso posto.</div>
               </div>
             </div>
-            <button className="submit-btn" onClick={handleCreate}
+            <button className="submit-btn" onClick={editingTopic ? handleUpdateTopic : handleCreate}
               disabled={!form.title || !form.format || form.tags.length < 3}>
-              Pubblica topic ✨
+              {editingTopic ? "Salva modifiche ✓" : "Pubblica topic ✨"}
             </button>
+            {editingTopic && (
+              <button onClick={() => {
+                setEditingTopic(false);
+                setForm({ title: "", desc: "", format: "", date: "", timeSlot: "", location: "", tagInput: "", tags: [], section: "" });
+                setTab("home");
+              }}
+                style={{width:"100%", padding:"13px", borderRadius:"16px", border:"1.5px solid var(--sand)", background:"white", color:"var(--bark)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", marginTop:"10px"}}>
+                Annulla modifica
+              </button>
+            )}
           </div>
         )}
 
@@ -1243,7 +1419,7 @@ function AffiniAppContent({ session }) {
                         <div className="mini-card-title">{ev.title}</div>
                         <div className="mini-card-meta">
                         {ev.date
-                          ? `📅 ${ev.date}${ev.time ? " · 🕐 " + ev.time : ""} · 📍 ${ev.location}`
+                          ? `📅 ${formatDateIT(ev.date)}${ev.time ? " · 🕐 " + ev.time : ""} · 📍 ${ev.location}`
                           : confirmedDates[ev.id]
                             ? `📅 ${confirmedDates[ev.id].date} · 🕐 ${confirmedDates[ev.id].time} · 📍 ${ev.location}`
                             : `📅 Data da definire · 📍 ${ev.location}`}
@@ -1260,7 +1436,7 @@ function AffiniAppContent({ session }) {
                         <div className="mini-card-dot" style={{background: ev.accentColor}} />
                         <div>
                           <div className="mini-card-title">{ev.title}</div>
-                          <div className="mini-card-meta">📅 {ev.date} · 📍 {ev.location}</div>
+                          <div className="mini-card-meta">📅 {formatDateIT(ev.date)} · 📍 {ev.location}</div>
                         </div>
                       </div>
                     ))}
@@ -1431,87 +1607,72 @@ function AffiniAppContent({ session }) {
 
             <h1 style={{fontFamily:"Playfair Display, serif", fontSize:"28px", color:"var(--soil)", marginBottom:"8px"}}>Cos'è AFFINI</h1>
             <p style={{fontSize:"14px", color:"var(--bark)", lineHeight:"1.7", marginBottom:"28px"}}>
-AFFINI nasce da un'idea semplice:<br/>a volte si sente il bisogno di parlare con qualcuno.<br/>Non un amico, non uno psicologo, ma qualcuno che può capirti davvero, senza troppe spiegazioni.<br/>Qualcuno che sta vivendo o ha vissuto esattamente la tua stessa fase di vita.
+              AFFINI nasce da un'idea semplice: a volte si sente il bisogno di parlare con qualcuno. Non un amico, non uno psicologo, ma qualcuno che può capirti davvero, senza troppe spiegazioni. Qualcuno che sta vivendo o ha vissuto esattamente la tua stessa fase di vita.
             </p>
 
-            <h2 style={{fontFamily:"Playfair Display, serif", fontSize:"20px", color:"var(--soil)", marginBottom:"12px"}}>Come funziona</h2>
-            <div style={{display:"flex", flexDirection:"column", gap:"14px", marginBottom:"28px"}}>
-              {/* Step 1 */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"28px", height:"28px", borderRadius:"50%", background:"var(--soil)", color:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"700", flexShrink:0}}>1</div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>HOME: esplora i Topic</div>
+            <h2 style={{fontFamily:"Playfair Display, serif", fontSize:"20px", color:"var(--soil)", marginBottom:"16px"}}>Come funziona</h2>
+            <div style={{display:"flex", flexDirection:"column", gap:"22px", marginBottom:"28px"}}>
+
+              <div>
+                <div style={{display:"flex", gap:"10px", alignItems:"center", marginBottom:"8px"}}>
+                  <div style={{width:"26px", height:"26px", borderRadius:"50%", background:"var(--soil)", color:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"700", flexShrink:0}}>1</div>
+                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)"}}>HOME: esplora i Topic</div>
                 </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"42px", whiteSpace:"pre-line"}}>{"Ogni Topic è creato da una persona reale che vuole incontrare anime affini.\nFiltra per hashtag per trovare gli argomenti a cui sei interessato, o lasciati ispirare da quelli suggeriti."}</div>
+                <ul style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"36px", margin:0}}>
+                  <li style={{marginBottom:"6px"}}>Ogni Topic è creato da una persona reale che vuole incontrare anime affini.</li>
+                  <li style={{marginBottom:"6px"}}>Con l'icona cerca filtra per hashtag per trovare gli argomenti a cui sei interessato, o lasciati ispirare da quelli suggeriti.</li>
+                  <li>Clicca sul topic che ti interessa e Partecipa all'incontro! Scegli la tua posizione (se stai vivendo quella situazione o ci sei già passat*) e racconta brevemente cosa ti lega a quel topic. Queste informazioni saranno visibili solo agli altri iscritti, per arrivare all'incontro con una buona base per rompere il ghiaccio.</li>
+                </ul>
               </div>
 
-              {/* Step 3 */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>ISCRIVITI!</div>
+              <div>
+                <div style={{display:"flex", gap:"10px", alignItems:"center", marginBottom:"8px"}}>
+                  <div style={{width:"26px", height:"26px", borderRadius:"50%", background:"var(--soil)", color:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"700", flexShrink:0}}>2</div>
+                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)"}}>CREA: proponi il tuo Topic</div>
                 </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"42px"}}>Clicca sul topic che ti interessa. Scegli la tua posizione (se stai vivendo quella situazione o ci sei già passat*) e racconta brevemente cosa ti lega a quel topic. Queste informazioni saranno visibili solo agli altri iscritti, per arrivare all'incontro con una buona base per rompere il ghiaccio.</div>
-
-              {/* Step - Data da definire */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>DATA DA DEFINIRE</div>
-                </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"22px"}}>Quando il creatore del topic non fissa subito una data, ogni iscritto inserisce le proprie disponibilità scegliendo giorni e fasce orarie. Più opzioni inserisci, più faciliti l'incontro. Appena almeno due persone condividono una stessa disponibilità, data e orario vengono confermati automaticamente.</div>
-              </div>
+                <ul style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"36px", margin:0}}>
+                  <li style={{marginBottom:"6px"}}>Scegli il TITOLO che spieghi in maniera semplice e diretta di cosa vuoi parlare.</li>
+                  <li style={{marginBottom:"6px"}}>Con Raccontaci di più hai la possibilità di approfondire meglio l'argomento di cui hai bisogno di parlare.</li>
+                  <li style={{marginBottom:"6px"}}>Scegli il FORMATO dell'incontro. Se hai bisogno di più intimità il One to One farà al caso tuo, se preferisci una situazione più informale il Gruppo è perfetto. Per un incontro equilibrato prediligi lo Standard.</li>
+                  <li style={{marginBottom:"6px"}}>Inserisci 3 HASHTAG per meglio descrivere il tuo Topic.</li>
+                  <li style={{marginBottom:"6px"}}>Data e Ora possono essere definiti direttamente da te, oppure scelti insieme in un secondo momento in base ai vostri match. Ogni iscritto inserisce le proprie disponibilità scegliendo giorni e fasce orarie. Più opzioni inserisci, più faciliti l'incontro. Appena almeno due persone condividono una stessa disponibilità, data e orario vengono confermati automaticamente.</li>
+                  <li>Scegli il Luogo su Google Maps così da facilitare l'incontro.</li>
+                </ul>
               </div>
 
-              {/* Step 4 */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>NO CHAT</div>
+              <div>
+                <div style={{display:"flex", gap:"10px", alignItems:"center", marginBottom:"8px"}}>
+                  <div style={{width:"26px", height:"26px", borderRadius:"50%", background:"var(--soil)", color:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"700", flexShrink:0}}>3</div>
+                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)"}}>EVENTI: ad ogni mese il suo Topic</div>
                 </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6"}}>L'assenza di una chat non è una scelta casuale. Lo scopo è conoscersi direttamente dal vivo e darsi una possibilità senza pregiudizi. Un'occasione sempre più rara.</div>
+                <ul style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"36px", margin:0}}>
+                  <li style={{marginBottom:"6px"}}>Ogni mese AFFINI organizza un evento dal vivo dedicato al Topic più discusso della community. Non un semplice incontro, ma una vera e propria esperienza per coinvolgere e ispirare.</li>
+                  <li>Ogni mese viene assegnato il Premio Community a chi ha creato il Topic più partecipato e riprodotto. Il vincitore otterrà l'ingresso gratuito all'evento con la possibilità di portare 1 ospite a scelta. I risultati escono il 1° di ogni mese.</li>
+                </ul>
               </div>
 
-              {/* Step 2 */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>CREA: apri il tuo topic</div>
+              <div>
+                <div style={{display:"flex", gap:"10px", alignItems:"center", marginBottom:"8px"}}>
+                  <div style={{width:"26px", height:"26px", borderRadius:"50%", background:"var(--soil)", color:"var(--cream)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"700", flexShrink:0}}>4</div>
+                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)"}}>PROFILO: monitora i tuoi prossimi incontri</div>
                 </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"42px"}}>Clicca su CREA e scrivi il tuo topic. Scegli il formato (one to one, standard o gruppo), aggiungi 3 hashtag per farti trovare e scegli data e luogo.</div>
-
-              {/* Sblocco abbonamento */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>CREA E RISPARMIA</div>
-                </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"22px"}}>Se crei un topic e raggiunge il numero minimo di iscritti necessari per tenerlo, il mese di abbonamento è tuo gratis. Il tuo contributo alla community vale quanto 5€.</div>
+                <ul style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"36px", margin:0}}>
+                  <li style={{marginBottom:"6px"}}>Sul tuo profilo puoi impostare il nome con cui appari, la foto/emoji e una piccola descrizione di te.</li>
+                  <li>Monitora gli incontri a cui parteciperai e ricorda quelli a cui hai già partecipato.</li>
+                </ul>
               </div>
 
-              {/* EVENTI */}
-              <div style={{marginBottom:"18px"}}>
-                <div style={{display:"flex", gap:"14px", alignItems:"flex-start", marginBottom:"8px"}}>
-                  <div style={{width:"8px", height:"8px", borderRadius:"50%", background:"var(--soil)", flexShrink:0, marginTop:"6px"}}></div>
-                  <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", paddingTop:"4px"}}>EVENTI</div>
-                </div>
-                <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", paddingLeft:"22px"}}>Ogni mese AFFINI organizza un evento dal vivo dedicato al topic più discusso della community. Non un semplice incontro, ma una vera e propria esperienza per coinvolgere e ispirare. Trovi tutto nella sezione Eventi.</div>
-              </div>
-              </div>
             </div>
 
-            <h2 style={{fontFamily:"Playfair Display, serif", fontSize:"20px", color:"var(--soil)", marginBottom:"12px"}}>Abbonamento</h2>
-            <div style={{background:"white", borderRadius:"16px", padding:"18px", marginBottom:"12px", border:"1.5px solid var(--sand)"}}>
-              <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", marginBottom:"6px"}}>🌱 Primo incontro del mese</div>
-              <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.5"}}>Gratuito per tutti. Iscriviti, partecipa, scopri com'è AFFINI senza spendere nulla.</div>
-            </div>
-            <div style={{background:"white", borderRadius:"16px", padding:"18px", marginBottom:"12px", border:"1.5px solid var(--sand)"}}>
-              <div style={{fontSize:"14px", fontWeight:"600", color:"var(--soil)", marginBottom:"6px"}}>✨ Incontri illimitati — 5€/mese</div>
-              <div style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.5"}}>Dal secondo incontro in poi, sblocchi tutti gli incontri del mese con 5€. Oppure crea un topic che raggiunga almeno 2 iscritti e il mese è tuo gratis.</div>
-            </div>
-            <div style={{background:"var(--rose-light)", borderRadius:"16px", padding:"18px", marginBottom:"28px", border:"1.5px solid var(--rose-mid)"}}>
-              <div style={{fontSize:"13px", color:"var(--rose)", lineHeight:"1.5", fontStyle:"italic"}}>Il tuo mese parte dal giorno in cui attivi l'abbonamento e dura 30 giorni — come Canva, Spotify e tutti i servizi che conosci.</div>
-            </div>
+            <h2 style={{fontFamily:"Playfair Display, serif", fontSize:"20px", color:"var(--soil)", marginBottom:"12px"}}>Abbonamento: crea e risparmia</h2>
+            <p style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", marginBottom:"28px"}}>
+              La partecipazione del primo Topic di ogni mese è gratuita. L'iscrizione illimitata a tutti i Topic successivi è di €5. Se crei un Topic e raggiunge il numero minimo di iscritti il tuo mese di abbonamento sarà gratis per ringraziarti del tuo contributo alla community.
+            </p>
+
+            <h2 style={{fontFamily:"Playfair Display, serif", fontSize:"20px", color:"var(--soil)", marginBottom:"12px"}}>No Chat: non una scelta casuale</h2>
+            <p style={{fontSize:"13px", color:"var(--bark)", lineHeight:"1.6", marginBottom:"28px"}}>
+              Lo scopo è conoscersi direttamente dal vivo e darsi una possibilità senza pregiudizi. Un'occasione sempre più rara.
+            </p>
 
             <button onClick={() => setShowGuide(false)}
               style={{width:"100%", padding:"15px", borderRadius:"16px", border:"none", background:"var(--soil)", color:"var(--cream)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"15px", fontWeight:"500"}}>
