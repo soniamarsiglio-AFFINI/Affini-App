@@ -240,12 +240,7 @@ const style = `
 
 const tagColor = () => ({ bg: "rgba(181,115,122,0.15)", color: "#B5737A" });
 
-const PARTICIPANTS = [
-  { id: 1, name: "Marco B.", avatar: "🧔", photo: null, bio: "Dopo 10 anni in azienda sento che non è più il mio posto. Sto cercando il coraggio di cambiare." },
-  { id: 2, name: "Giulia R.", avatar: "👩", photo: null, bio: "Mamma di due bambini, ex manager. Sto cercando di capire chi sono al di là dei miei ruoli." },
-  { id: 3, name: "Luca T.", avatar: "🧑", photo: null, bio: "Freelance da 3 anni. Ho imparato tanto — disposto a condividere tutto quello che so." },
-  { id: 4, name: "Anna P.", avatar: "👱", photo: null, bio: "🌱" },
-];
+const PARTICIPANTS = [];
 
 const SUGGESTED_TAGS = [
   "cambiamento","lavoro","paura","identità","maternità","solitudine","ricominciare",
@@ -261,80 +256,14 @@ const FORMATS = [
   { id: "gruppo", label: "Gruppo", icon: "👥", desc: "5 pers." },
 ];
 
-const EVENTS = [
-  {
-    id: 1,
-    title: "Voglio lasciare il lavoro dipendente e fare la freelance",
-    desc: "Ci ritroviamo per parlare di quella sensazione di voler mollare tutto e ricominciare — paure, sogni e passi concreti.",
-    tags: ["cambiamento", "lavoro", "paura"],
-    date: "Ven 10 Gen", time: "18:30", location: "Milano", venue: "Bar Brera — Via Brera 12", dateObj: new Date("2025-01-10T18:30"),
-    format: "standard", full: false, accentColor: "#B5737A",
-  },
-  {
-    id: 2,
-    title: "Non so se fare la mamma a tempo pieno o tornare a lavorare",
-    desc: "Un incontro per chi sente il peso di quella scelta impossibile — senza giudizi, solo ascolto e confronto reale.",
-    tags: ["maternità", "identità", "senso di colpa"],
-    date: "Mer 5 Feb", time: "10:00", location: "Roma", venue: "Caffè San Pietro — Via della Conciliazione 4", dateObj: new Date("2025-02-05T10:00"),
-    format: "onetoone", full: false, accentColor: "#8B6F4E",
-  },
-  {
-    id: 3,
-    title: "Devo scegliere la scuola materna — aiuto!",
-    desc: "Pubblica, privata, Montessori? Cerco chi ci è già passato o chi sta scegliendo adesso — scambiamoci informazioni pratiche.",
-    tags: ["scuola-materna", "figli", "decisione"],
-    date: "Sab 3 Mag", time: "10:30", location: "Torino", venue: "Caffè Vanchiglia — Via Vanchiglia 5", dateObj: new Date("2026-05-03T10:30"),
-    format: "gruppo", full: false, accentColor: "#4A6741",
-  },
-  {
-    id: 4,
-    title: "Stiamo ristrutturando casa: imprevisti, costi, consigli",
-    desc: "Cerco chi ha già ristrutturato e vuole condividere quello che sa — o chi sta vivendo il cantiere adesso come me.",
-    tags: ["ristrutturazione", "casa", "consigli"],
-    date: "Ven 21 Mar", time: "20:00", location: "Bologna, centro",
-    format: "standard", full: false, accentColor: "#6B8A5E",
-  },
-  {
-    id: 5,
-    title: "Mi sento bloccato e non so come sbloccarmi",
-    desc: "Quella sensazione di stare fermo mentre tutti sembrano andare avanti. Un posto sicuro per dirlo ad alta voce.",
-    tags: ["smarrimento", "crescita", "cambiamento"],
-    date: "Lun 24 Mar", time: "19:00", location: "Firenze", venue: "Caffè Gilli — Piazza della Repubblica 39", dateObj: new Date("2026-04-24T19:00"),
-    format: "standard", full: false, accentColor: "#3D2B1F",
-  },
-  {
-    id: 6,
-    title: "Ho lasciato tutto per viaggiare un anno — ora non so come rientrare",
-    desc: "Sono tornata, ho 30 anni e mi sento fuori posto ovunque. Cerco chi ha vissuto qualcosa di simile.",
-    tags: ["identità", "ricominciare", "paura"],
-    date: "Mer 26 Mar", time: "19:30", location: "Milano", venue: "Feltrinelli — Piazza Piemonte 2", dateObj: new Date("2026-04-26T19:30"),
-    format: "standard", full: true, accentColor: "#B5737A",
-  },
-  {
-    id: 7,
-    title: "Stiamo valutando una scuola Montessori per nostro figlio",
-    desc: "Cerco famiglie che ci sono già passate — dubbi, pro, contro, costi reali. Voglio capire se fa per noi.",
-    tags: ["scuola", "figli", "decisione"],
-    date: null, time: null, location: "Roma", venue: "Sciascia Caffè — Via Fabio Massimo 80", dateObj: null,
-    format: "gruppo", full: false, accentColor: "#8B6F4E",
-  },
-  {
-    id: 8,
-    title: "Ho perso mia madre di recente e non riesco a tornare alla normalità",
-    desc: "Cerco una persona che abbia vissuto un lutto simile — non voglio consigli, voglio solo sentirmi meno sola.",
-    tags: ["lutto", "solitudine", "elaborazione"],
-    date: "Sab 17 Mag", time: "11:00", location: "Milano", venue: "Dry Milano — Via Solferino 33", dateObj: new Date("2026-05-17T11:00"),
-    format: "onetoone", full: false, accentColor: "#D4959B",
-  },
-];
-
-const ALL_TAGS = [...new Set(EVENTS.flatMap(e => e.tags))];
 const formatLabel = (id) => FORMATS.find(f => f.id === id);
 
 function AffiniAppContent({ session }) {
   const [tab, setTab] = useState("home");
+  const [events, setEvents] = useState([]); // topics reali da Supabase
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [detail, setDetail] = useState(null);
-  const [joined, setJoined] = useState({1: true, 2: true, 3: true, 4: true});
+  const [joined, setJoined] = useState({});
   const [filter, setFilter] = useState("tutti");
   const [toast, setToast] = useState(null);
   const [motivation, setMotivation] = useState("");
@@ -359,17 +288,98 @@ function AffiniAppContent({ session }) {
   };
   const [confirmedDates, setConfirmedDates] = useState({});
   const [notifications, setNotifications] = useState([]);
-  const [profileData, setProfileData] = useState({ name: "Sonia M.", bio: "Sto cercando di capire cosa voglio davvero dalla mia vita professionale e non solo.", avatar: "🙋", photo: null });
+  const [profileData, setProfileData] = useState({ name: "", bio: "", avatar: "🙋", photo: null });
   const [form, setForm] = useState({ title: "", desc: "", format: "", date: "", location: "", tagInput: "", tags: [], section: "" });
+  const [participants, setParticipants] = useState([]);
+  const [myTopics, setMyTopics] = useState({ upcoming: [], past: [] });
 
   const showToast = (msg, type="success") => { setToast({msg, type}); setTimeout(() => setToast(null), 2500); };
 
-  const handleJoin = (id) => {
-    setJoined(j => {
-      const next = { ...j, [id]: !j[id] };
-      showToast(next[id] ? "🎉 Sei iscritto all'incontro!" : "Iscrizione rimossa");
-      return next;
-    });
+  // Carica il profilo utente
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
+      if (data) {
+        setProfileData({
+          name: data.name || "",
+          bio: data.bio || "",
+          avatar: data.avatar_emoji || "🙋",
+          photo: data.avatar_photo_url || null,
+        });
+      }
+    };
+    loadProfile();
+  }, [session]);
+
+  // Carica tutti i topic attivi (con i loro tag)
+  const loadEvents = async () => {
+    setLoadingEvents(true);
+    const { data, error } = await supabase
+      .from("topics")
+      .select(`
+        id, title, description, format, max_participants, date, time_slot,
+        city, venue, is_full, status, created_at, creator_id,
+        topic_tags ( tags ( name ) )
+      `)
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Errore caricamento topic:", error);
+      setEvents([]);
+    } else {
+      const mapped = (data || []).map(t => ({
+        id: t.id,
+        title: t.title,
+        desc: t.description,
+        tags: (t.topic_tags || []).map(tt => tt.tags?.name).filter(Boolean),
+        date: t.date,
+        time: t.time_slot,
+        location: t.city,
+        venue: t.venue,
+        format: t.format,
+        full: t.is_full,
+        creator_id: t.creator_id,
+        accentColor: "#B5737A",
+        dateObj: t.date ? new Date(t.date) : null,
+      }));
+      setEvents(mapped);
+    }
+    setLoadingEvents(false);
+  };
+
+  useEffect(() => { loadEvents(); }, []);
+
+  // Carica le mie iscrizioni
+  useEffect(() => {
+    const loadMySubscriptions = async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("topic_id")
+        .eq("user_id", session.user.id);
+      if (data) {
+        const joinedMap = {};
+        data.forEach(s => { joinedMap[s.topic_id] = true; });
+        setJoined(joinedMap);
+      }
+    };
+    loadMySubscriptions();
+  }, [session, events.length]);
+
+  const handleJoin = async (id) => {
+    const isCurrentlyJoined = joined[id];
+    if (isCurrentlyJoined) {
+      await supabase.from("subscriptions").delete().eq("topic_id", id).eq("user_id", session.user.id);
+      setJoined(j => ({ ...j, [id]: false }));
+      showToast("Iscrizione rimossa");
+    } else {
+      showToast("🎉 Sei iscritto all'incontro!");
+      setJoined(j => ({ ...j, [id]: true }));
+    }
   };
 
   const handleAddTag = () => {
@@ -378,26 +388,83 @@ function AffiniAppContent({ session }) {
     setForm(f => ({ ...f, tags: [...f.tags, t], tagInput: "" }));
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.title || !form.format || form.tags.length < 3) return showToast("Completa tutti i campi e aggiungi 3 tag", "error");
+
+    const maxParticipants = form.format === "onetoone" ? 2 : form.format === "gruppo" ? 5 : 4;
+
+    const { data: topic, error: topicError } = await supabase
+      .from("topics")
+      .insert({
+        creator_id: session.user.id,
+        title: form.title,
+        description: form.desc,
+        format: form.format,
+        max_participants: maxParticipants,
+        date: form.date || null,
+        city: form.location.split("—")[0].trim() || form.location,
+        venue: form.location.includes("—") ? form.location.split("—")[1].trim() : null,
+      })
+      .select()
+      .single();
+
+    if (topicError || !topic) {
+      showToast("Errore nella creazione del topic", "error");
+      return;
+    }
+
+    // Crea/recupera i tag e collegali al topic
+    for (const tagName of form.tags) {
+      let { data: existingTag } = await supabase.from("tags").select("id").eq("name", tagName).single();
+      let tagId = existingTag?.id;
+      if (!tagId) {
+        const { data: newTag } = await supabase.from("tags").insert({ name: tagName }).select().single();
+        tagId = newTag?.id;
+      }
+      if (tagId) {
+        await supabase.from("topic_tags").insert({ topic_id: topic.id, tag_id: tagId });
+      }
+    }
+
+    // Il creatore è automaticamente iscritto
+    await supabase.from("subscriptions").insert({
+      topic_id: topic.id,
+      user_id: session.user.id,
+      role: "ci_sto_passando",
+      motivation: "Ho creato questo topic.",
+    });
+
     showToast("✨ Topic pubblicato!");
-    setForm({ title: "", desc: "", format: "", date: "", location: "", tagInput: "", tags: [] });
+    setForm({ title: "", desc: "", format: "", date: "", location: "", tagInput: "", tags: [], section: "" });
     setTab("home");
+    loadEvents();
   };
 
   const now = new Date();
-  const activeEvents = [...extraEvents, ...EVENTS].filter(e => !e.dateObj || e.dateObj > now);
-  const pastEvents = EVENTS.filter(e => e.dateObj && e.dateObj <= now);
-  const openDetail = (id) => {
+  const activeEvents = events.filter(e => !e.dateObj || e.dateObj > now);
+  const openDetail = async (id) => {
     setDetail(id);
-    if (confirmedDates[id] && !notifiedEvents[id]) {
-      showToast("🗓 Data confermata per questo incontro!");
-      setNotifiedEvents(n => ({...n, [id]: true}));
+    // Carica chi partecipa, solo se sono già iscritta
+    if (joined[id]) {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("user_id, role, motivation, profiles ( name, avatar_emoji, avatar_photo_url, bio )")
+        .eq("topic_id", id);
+      if (data) {
+        setParticipants(data.map(p => ({
+          id: p.user_id,
+          name: p.profiles?.name || "Utente",
+          avatar: p.profiles?.avatar_emoji || "🙋",
+          photo: p.profiles?.avatar_photo_url || null,
+          bio: p.motivation,
+        })));
+      }
     }
   };
   const filteredEvents = activeEvents
     .filter(e => filter === "tutti" || e.tags.includes(filter))
     .filter(e => !searchQuery || e.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+  const ALL_TAGS = [...new Set(events.flatMap(e => e.tags))];
 
   return (
     <>
@@ -406,7 +473,7 @@ function AffiniAppContent({ session }) {
 
         {/* DETAIL OVERLAY */}
         {detail && (() => {
-          const ev = EVENTS.find(e => e.id === detail);
+          const ev = events.find(e => e.id === detail);
           const isJoined = joined[ev.id];
           const fmt = formatLabel(ev.format);
           return (
@@ -565,13 +632,22 @@ function AffiniAppContent({ session }) {
                           style={{flex:1, padding:"13px", borderRadius:"12px", border:"1.5px solid var(--sand)", background:"white", color:"var(--bark)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px"}}>
                           Annulla
                         </button>
-                        <button onClick={() => {
+                        <button onClick={async () => {
                           const role = motivation.split(" — ")[0];
                           const text = motivation.includes(" — ") ? motivation.split(" — ")[1] : "";
                           if (!role || !role.startsWith("🌱") && !role.startsWith("🤍")) return showToast("Scegli la tua posizione", "error");
                           if (!text.trim()) return showToast("Raccontaci cosa ti lega a questo topic", "error");
+                          const roleValue = role.startsWith("🌱") ? "ci_sto_passando" : "ci_sono_passato";
+                          await supabase.from("subscriptions").insert({
+                            topic_id: ev.id,
+                            user_id: session.user.id,
+                            role: roleValue,
+                            motivation: text.trim(),
+                          });
                           setShowMotivation(false);
-                          handleJoin(ev.id);
+                          setJoined(j => ({ ...j, [ev.id]: true }));
+                          showToast("🎉 Sei iscritto all'incontro!");
+                          setMotivation("");
                           setDetail(null);
                           setTab("home");
                         }}
@@ -719,8 +795,11 @@ function AffiniAppContent({ session }) {
               </div>
             )}
             <div className="feed">
-              {filteredEvents.length === 0 && (
-                <div className="empty"><div className="empty-icon">🌿</div><div className="empty-text">Nessun topic con questo tag.<br />Crea il primo!</div></div>
+              {loadingEvents && (
+                <div className="empty"><div className="empty-icon">⏳</div><div className="empty-text">Carico i topic...</div></div>
+              )}
+              {!loadingEvents && filteredEvents.length === 0 && (
+                <div className="empty"><div className="empty-icon">🌿</div><div className="empty-text">Nessun topic ancora.<br />Sii la prima a crearne uno!</div></div>
               )}
               {filteredEvents.map(ev => {
                 const isJoined = joined[ev.id];
@@ -1109,7 +1188,16 @@ function AffiniAppContent({ session }) {
                       style={{flex:1, padding:"13px", borderRadius:"12px", border:"1.5px solid var(--sand)", background:"white", color:"var(--bark)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px"}}>
                       Annulla
                     </button>
-                    <button onClick={() => { setEditProfile(false); showToast("Profilo aggiornato!"); }}
+                    <button onClick={async () => {
+                      await supabase.from("profiles").update({
+                        name: profileData.name,
+                        bio: profileData.bio,
+                        avatar_emoji: profileData.avatar,
+                        avatar_photo_url: profileData.photo,
+                      }).eq("id", session.user.id);
+                      setEditProfile(false);
+                      showToast("Profilo aggiornato!");
+                    }}
                       style={{flex:2, padding:"13px", borderRadius:"12px", border:"none", background:"var(--soil)", color:"var(--cream)", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:"500"}}>
                       Salva
                     </button>
@@ -1136,7 +1224,7 @@ function AffiniAppContent({ session }) {
             )}
             {(() => {
               const myIds = Object.keys(joined).filter(k => joined[k]).map(Number);
-              const myEvents = EVENTS.filter(e => myIds.includes(e.id));
+              const myEvents = events.filter(e => myIds.includes(e.id));
               const upcoming = myEvents.filter(e => !e.dateObj || e.dateObj > new Date());
               const past = myEvents.filter(e => e.dateObj && e.dateObj <= new Date());
               return <>
@@ -1318,7 +1406,7 @@ function AffiniAppContent({ session }) {
                   if (matchDay) {
                     const d = new Date(matchDay);
                     const label = d.toLocaleDateString("it-IT", {weekday:"short", day:"numeric", month:"short"});
-                    const ev = EVENTS.find(e => e.id === detail);
+                    const ev = events.find(e => e.id === detail);
                     setConfirmedDates(cd => ({...cd, [detail]: { date: label, time: matchFascia, location: ev?.location }}));
                     setNotifications(n => [...n, { eventId: detail, title: ev?.title, date: label, time: matchFascia }]);
                   }
