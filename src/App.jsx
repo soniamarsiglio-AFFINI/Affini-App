@@ -975,7 +975,7 @@ function AffiniAppContent({ session }) {
                 maxLength={300} value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} />
               <div style={{fontSize:"11px", color:"var(--bark)", textAlign:"right", marginTop:"4px"}}>{form.desc.length}/300</div>
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{marginTop:"28px"}}>
               <label className="form-label">Formato incontro</label>
               <div className="format-picker">
                 {FORMATS.map(f => (
@@ -988,7 +988,7 @@ function AffiniAppContent({ session }) {
                 ))}
               </div>
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{marginTop:"28px"}}>
               <label className="form-label">3 Tag obbligatori ({form.tags.length}/3)</label>
               {form.tags.length < 3 && (
                 <div className="tag-input-wrap">
@@ -1049,9 +1049,9 @@ function AffiniAppContent({ session }) {
                 </div>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop:"28px" }}>
               <div className="form-group">
-                <label className="form-label">Data (entro 3 mesi)</label>
+                <label className="form-label">Data</label>
                 {(() => {
                   const today = new Date();
                   const maxDate = new Date(today);
@@ -1132,73 +1132,31 @@ function AffiniAppContent({ session }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Orario</label>
-                <div style={{display:"flex", gap:"8px", marginBottom:"10px"}}>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, timeMode: "fascia", exactTime: "" }))}
-                    style={{
-                      flex:1, padding:"8px", borderRadius:"10px", border:"1.5px solid",
-                      borderColor: (form.timeMode || "fascia") === "fascia" ? "var(--soil)" : "var(--sand)",
-                      background: (form.timeMode || "fascia") === "fascia" ? "var(--soil)" : "white",
-                      color: (form.timeMode || "fascia") === "fascia" ? "var(--cream)" : "var(--bark)",
-                      fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer"
-                    }}>
-                    Fascia oraria
-                  </button>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, timeMode: "exact", timeSlot: "" }))}
-                    style={{
-                      flex:1, padding:"8px", borderRadius:"10px", border:"1.5px solid",
-                      borderColor: form.timeMode === "exact" ? "var(--soil)" : "var(--sand)",
-                      background: form.timeMode === "exact" ? "var(--soil)" : "white",
-                      color: form.timeMode === "exact" ? "var(--cream)" : "var(--bark)",
-                      fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer"
-                    }}>
-                    Orario preciso
-                  </button>
-                </div>
-                {form.timeMode === "exact" ? (
-                  <input className="form-input" type="time"
-                    value={form.exactTime || ""}
-                    onChange={e => setForm(f => ({ ...f, exactTime: e.target.value }))} />
-                ) : (
-                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px"}}>
-                    {["Mattina · 9:00–12:00","Pranzo · 12:00–14:00","Pomeriggio · 14:00–17:00","Aperitivo · 17:00–20:00","Cena · 20:00–22:00","Sera · 22:00–24:00"].map(slot => (
-                      <button key={slot} type="button"
-                        onClick={() => setForm(f => ({ ...f, timeSlot: slot }))}
-                        style={{
-                          padding:"10px 8px", borderRadius:"12px", border:"1.5px solid",
-                          borderColor: form.timeSlot === slot ? "var(--soil)" : "var(--sand)",
-                          background: form.timeSlot === slot ? "var(--soil)" : "white",
-                          color: form.timeSlot === slot ? "var(--cream)" : "var(--bark)",
-                          fontSize:"12px", fontFamily:"DM Sans, sans-serif", cursor:"pointer", textAlign:"center"
-                        }}>
-                        {slot}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <input className="form-input" type="time"
+                  value={form.exactTime || ""}
+                  onChange={e => setForm(f => ({ ...f, exactTime: e.target.value }))} />
               </div>
-              <div className="form-group">
-                <label className="form-label">Luogo</label>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px"}}>
-                  <div>
-                    <div style={{fontSize:"11px", color:"var(--bark)", marginBottom:"6px"}}>Specifica il nome del locale, parco, piazza</div>
-                    <input className="form-input" placeholder="Es. Baracchina"
-                      value={form.venueName || ""} onChange={e => setForm(f => ({ ...f, venueName: e.target.value }))} />
-                  </div>
-                  <div>
-                    <div style={{fontSize:"11px", color:"var(--bark)", marginBottom:"6px"}}>Indirizzo (da Google Maps)</div>
-                    <input className="form-input" placeholder="Es. Via Emilia 12, Modena"
-                      value={form.venueAddress || ""} onChange={e => setForm(f => ({ ...f, venueAddress: e.target.value }))} />
-                  </div>
+            </div>
+            <div className="form-group" style={{marginTop:"28px"}}>
+              <label className="form-label">Luogo</label>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", alignItems:"start"}}>
+                <div>
+                  <input className="form-input" placeholder="Es. Modena — La Baracchina"
+                    style={{marginBottom:"6px"}}
+                    value={form.venueName || ""} onChange={e => setForm(f => ({ ...f, venueName: e.target.value }))} />
+                  <div style={{fontSize:"11px", color:"var(--bark)"}}>Specifica il nome del locale, parco o piazza</div>
                 </div>
-                <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer"
-                  style={{
-                    display:"inline-flex", alignItems:"center", gap:"6px", marginTop:"8px",
-                    fontSize:"12px", color:"var(--rose)", fontWeight:"500", textDecoration:"none"
-                  }}>
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="5.5" r="3.2" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M6.5 8.5C6.5 8.5 2.5 11.5 6.5 11.5C10.5 11.5 6.5 8.5 6.5 8.5Z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
-                  Cerca su Google Maps
-                </a>
-                <div style={{fontSize:"11px", color:"var(--bark)", marginTop:"4px"}}>Trova l'indirizzo esatto su Maps, poi copialo qui sopra — così tutti arriveranno nello stesso posto.</div>
+                <div>
+                  <input className="form-input" placeholder="Es. Viale G. Amendola 411, 41125 Modena MO"
+                    style={{marginBottom:"4px"}}
+                    value={form.venueAddress || ""} onChange={e => setForm(f => ({ ...f, venueAddress: e.target.value }))} />
+                  <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer"
+                    style={{display:"inline-flex", alignItems:"center", gap:"5px", fontSize:"11px", color:"var(--rose)", fontWeight:"500", textDecoration:"none", marginBottom:"4px"}}>
+                    <svg width="11" height="11" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="5.5" r="3.2" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M6.5 8.5C6.5 8.5 2.5 11.5 6.5 11.5C10.5 11.5 6.5 8.5 6.5 8.5Z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>
+                    Cerca su Google Maps
+                  </a>
+                  <div style={{fontSize:"11px", color:"var(--bark)"}}>Copia e incolla qui l'indirizzo preciso così da facilitare l'incontro</div>
+                </div>
               </div>
             </div>
             <button className="submit-btn" onClick={editingTopic ? handleUpdateTopic : handleCreate}
